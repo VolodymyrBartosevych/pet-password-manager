@@ -9,11 +9,13 @@ using pet_pm.UI;
 class Program {
     static void Main(string[] args)
     {
-        IPasswordStorage storage = new DBPasswordStorage();
-        PasswordManager manager = new PasswordManager(storage);
-        Menu menu = new Menu(manager);
+        using (DBPasswordStorage storage = new DBPasswordStorage())
+        {
+            PasswordManager manager = new PasswordManager(storage);
+            Menu menu = new Menu(manager);
 
-        menu.DisplayMainMenu();
+            menu.DisplayMainMenu();
+        }
     }
 
 }
