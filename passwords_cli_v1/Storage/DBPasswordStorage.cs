@@ -92,10 +92,12 @@ namespace pet_pm.Storage
                 catch (SqliteException sqlEx)
                 {
                     Console.WriteLine("SQLite error writing DB: " + sqlEx.Message);
+                    throw;
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine("Unexpected error writing DB: " + ex.Message);
+                    throw;
                 }
 
 

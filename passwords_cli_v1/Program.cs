@@ -9,7 +9,7 @@ using pet_pm.UI;
 class Program {
     static void Main(string[] args)
     {
-        using (DBPasswordStorage storage = new DBPasswordStorage())
+        using (EncPasswordStorage storage = new EncPasswordStorage())
         {
             PasswordManager manager = new PasswordManager(storage);
             Menu menu = new Menu(manager);

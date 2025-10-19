@@ -43,7 +43,7 @@ namespace pet_pm.Core
             {
                 Console.WriteLine(entry.ServiceName);
                 Console.WriteLine("login:" + entry.Login);
-                Console.WriteLine("password: ************"); //add revealing later
+                Console.WriteLine("password:" + entry.Password);
             }
         }
 
