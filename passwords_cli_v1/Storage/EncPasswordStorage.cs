@@ -47,21 +47,10 @@ namespace pet_pm.Storage
         {
             try
             {
-                using var aes = Aes.Create();
-                aes.Key = key;
-                aes.GenerateIV();
+                string encLogin = Encrypt(entry.Login);
+                string encPassword = Encrypt(entry.Password);
 
-                byte[] plainText = Encoding.UTF8.GetBytes(entry.Password);
-                using var encryptor = aes.CreateEncryptor();
-                byte[] cipher = encryptor.TransformFinalBlock(plainText, 0, plainText.Length);
-
-                byte[] combined = new byte[16 + cipher.Length];
-                Buffer.BlockCopy(aes.IV, 0, combined, 0, 16);
-                Buffer.BlockCopy(cipher, 0, combined, 16, cipher.Length);
-
-                string cipherB64 = Convert.ToBase64String(combined);
-
-                PasswordEntry encPasswordEntry = new PasswordEntry(entry.ServiceName, entry.Login, cipherB64);
+                PasswordEntry encPasswordEntry = new PasswordEntry(entry.ServiceName, encLogin, encPassword);
 
                 db.AddPassword(encPasswordEntry);
             }
@@ -87,28 +76,15 @@ namespace pet_pm.Storage
         {
             try
             {
-                IReadOnlyList<PasswordEntry> encPasswords = db.GetAllPasswords();
-                List<PasswordEntry> passwords = new List<PasswordEntry>();
-                foreach (var encPassword in encPasswords)
+                IReadOnlyList<PasswordEntry> encEntries = db.GetAllPasswords();
+                List<PasswordEntry> entries = new List<PasswordEntry>();
+                foreach (var entry in encEntries)
                 {
-                    byte[] combined = Convert.FromBase64String(encPassword.Password);
-
-                    byte[] cipher = new byte[combined.Length - 16];
-                    byte[] iv = new byte[16];
-
-                    Buffer.BlockCopy(combined, 0, iv, 0, 16);
-                    Buffer.BlockCopy(combined, 16, cipher, 0, cipher.Length);
-
-                    using var aes = Aes.Create();
-                    aes.Key = key;
-                    aes.IV = iv;
-
-                    using var decryptor = aes.CreateDecryptor();
-                    byte[] plainText = decryptor.TransformFinalBlock(cipher, 0, cipher.Length);
-                    string password = Encoding.UTF8.GetString(plainText);
-                    passwords.Add(new PasswordEntry(encPassword.ServiceName, encPassword.Login, password));
+                    string login = Decrypt(entry.Login);
+                    string password = Decrypt(entry.Password);
+                    entries.Add(new PasswordEntry(entry.ServiceName, login, password));
                 }
-                return passwords.AsReadOnly();
+                return entries.AsReadOnly();
             }
             catch (SqliteException ex)
             {
@@ -159,6 +135,11 @@ namespace pet_pm.Storage
 
         byte[] GetSalt(string path) 
         {
+            string dirName = Path.GetDirectoryName(path)!;
+            if (!Directory.Exists(dirName))
+            {
+                Directory.CreateDirectory(dirName);
+            }
             if (File.Exists(path)) 
             { 
                 return File.ReadAllBytes(path);    
@@ -169,6 +150,48 @@ namespace pet_pm.Storage
             rng.GetBytes(salt);
             File.WriteAllBytes(path, salt);
             return salt;
+        }
+
+        string Encrypt(string text)
+        {
+            byte[] plainText = Encoding.UTF8.GetBytes(text);
+            using var aes = Aes.Create();
+            aes.Key = key;
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+            aes.GenerateIV();
+
+            using var encryptor = aes.CreateEncryptor();
+            byte[] cipher = encryptor.TransformFinalBlock(plainText, 0, plainText.Length);
+
+            byte[] combined = new byte[16 + cipher.Length];
+            Buffer.BlockCopy(aes.IV, 0, combined, 0, 16);
+            Buffer.BlockCopy(cipher, 0, combined, 16, cipher.Length);
+
+            string cipherB64 = Convert.ToBase64String(combined);
+            return cipherB64;
+        }
+
+        string Decrypt(string cipherB64)
+        {
+            byte[] combined = Convert.FromBase64String(cipherB64);
+
+            byte[] cipher = new byte[combined.Length - 16];
+            byte[] iv = new byte[16];
+
+            Buffer.BlockCopy(combined, 0, iv, 0, 16);
+            Buffer.BlockCopy(combined, 16, cipher, 0, cipher.Length);
+
+            using var aes = Aes.Create();
+            aes.Key = key;
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+            aes.IV = iv;
+
+            using var decryptor = aes.CreateDecryptor();
+            byte[] plainText = decryptor.TransformFinalBlock(cipher, 0, cipher.Length);
+            string text = Encoding.UTF8.GetString(plainText);
+            return text;
         }
 
         public void Dispose()

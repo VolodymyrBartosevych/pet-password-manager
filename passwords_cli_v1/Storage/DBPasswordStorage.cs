@@ -29,8 +29,9 @@ namespace pet_pm.Storage
             Directory.CreateDirectory(bakDir);
 
             if (!Directory.Exists(dirName))
+            {
                 Directory.CreateDirectory(dirName);
-
+            }
 
 
             connection = new SqliteConnection($"Data Source={dbFile}");
