@@ -36,15 +36,9 @@ namespace pet_pm.Core
 
 
 
-        public void ViewAllPasswords()
+        public IReadOnlyList<PasswordEntry> GetAllPasswords()
         {
-            IReadOnlyList<PasswordEntry> passwords = storage.GetAllPasswords();
-            foreach (var entry in passwords)
-            {
-                Console.WriteLine(entry.ServiceName);
-                Console.WriteLine("login:" + entry.Login);
-                Console.WriteLine("password:" + entry.Password);
-            }
+            return storage.GetAllPasswords();
         }
 
 

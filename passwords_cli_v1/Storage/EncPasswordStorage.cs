@@ -12,7 +12,9 @@ namespace pet_pm.Storage
     internal class EncPasswordStorage : IPasswordStorage, IDisposable
     {
         string masterPassword;
-        string saltPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "p_vault", "salt.bin");
+        string appDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "p_vault");
+        string saltPath;
+        string hashPath;
         byte[] salt;
         byte[] key;
         DBPasswordStorage db;
@@ -21,9 +23,46 @@ namespace pet_pm.Storage
         {
             try
             {
-                masterPassword = GetMasterPassword();
+                saltPath = Path.Combine(appDir, "salt.bin");
+                hashPath = Path.Combine(appDir, "m.hash");
                 salt = GetSalt(saltPath);
-                key = GenerateKey(masterPassword, salt);
+                if (!File.Exists(hashPath))
+                {
+                    Console.WriteLine("No master password found. Let's set one up:");
+                    masterPassword = GetMasterPassword();
+
+                    SaveMaster();
+                    Console.WriteLine("Master password saved successfully!");
+                }
+                else
+                {
+                    bool verified = false;
+                    for (int attempts = 0; attempts < 3 && !verified; attempts++)
+                    {
+                        Console.WriteLine("Enter your master password:");
+                        masterPassword = GetMasterPassword();
+
+                        verified = VerifyMasterPassword(masterPassword, hashPath);
+
+                        if (!verified)
+                            Console.WriteLine("Incorrect password. Try again.");
+                    }
+
+                    if (!verified)
+                    {
+                        Console.WriteLine("Too many failed attempts. Exiting...");
+                        Environment.Exit(1);
+                    }
+                    
+                }
+
+                if (string.IsNullOrEmpty(masterPassword)) 
+                {
+                    throw new InvalidOperationException("Master password not initialized.");
+                }
+
+
+                key = GenerateHash(masterPassword, salt);
 
                 db = new DBPasswordStorage();
             }
@@ -100,7 +139,6 @@ namespace pet_pm.Storage
 
         string GetMasterPassword()
         {
-            Console.WriteLine("Enter your master password");
             StringBuilder password = new StringBuilder();
             ConsoleKeyInfo key;
 
@@ -120,11 +158,27 @@ namespace pet_pm.Storage
                 }
 
             } while (key.Key != ConsoleKey.Enter);
-            Console.WriteLine();
             return password.ToString();
         }
 
-        byte[] GenerateKey(string masterPassword, byte[] salt) 
+        void SaveMaster() 
+        {
+            byte[] hash = GenerateHash(masterPassword, salt);
+            using var fs = new FileStream(hashPath, FileMode.Create, FileAccess.Write);
+            fs.Write(hash);
+        }
+
+        bool VerifyMasterPassword(string password, string hashPath)
+        {
+            byte[] hash = File.ReadAllBytes(hashPath);
+            byte[] salt = File.ReadAllBytes(saltPath);
+
+            byte[] computedHash = GenerateHash(password, salt);
+
+            return CryptographicOperations.FixedTimeEquals(hash, computedHash);
+        }
+
+        byte[] GenerateHash(string masterPassword, byte[] salt) 
         {
             int iterations = 310_000;
             int keySize = 32;
@@ -135,10 +189,9 @@ namespace pet_pm.Storage
 
         byte[] GetSalt(string path) 
         {
-            string dirName = Path.GetDirectoryName(path)!;
-            if (!Directory.Exists(dirName))
+            if (!Directory.Exists(appDir))
             {
-                Directory.CreateDirectory(dirName);
+                Directory.CreateDirectory(appDir);
             }
             if (File.Exists(path)) 
             { 
@@ -193,6 +246,7 @@ namespace pet_pm.Storage
             string text = Encoding.UTF8.GetString(plainText);
             return text;
         }
+
 
         public void Dispose()
         {
